@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "KingSmart Postal Viewer",
+  "version": "1.0.0",
+  "description": "Lists parcel recipient households from KingNetSmart postal page",
+  "permissions": ["activeTab", "scripting"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.kingnetsmart.com.tw/community/postalList.aspx*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Scan Postal Recipients"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
