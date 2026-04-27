@@ -136,9 +136,27 @@
       display: "flex",
       alignItems: "center",
     });
-    closeBtn.addEventListener("click", () => overlay.remove());
     closeBtn.addEventListener("mouseover", () => { closeBtn.style.color = "#222222"; });
     closeBtn.addEventListener("mouseout", () => { closeBtn.style.color = "#999999"; });
+
+    // 倒數計時
+    const countdown = document.createElement("div");
+    Object.assign(countdown.style, {
+      fontSize: "13px",
+      color: "#aaaaaa",
+      padding: "4px 16px",
+      whiteSpace: "nowrap",
+    });
+    let remaining = 60;
+    countdown.textContent = `${remaining}s`;
+    const countdownTimer = setInterval(() => {
+      remaining -= 1;
+      countdown.textContent = `${remaining}s`;
+      if (remaining <= 0) {
+        clearInterval(countdownTimer);
+        location.reload();
+      }
+    }, 1000);
 
     // 三欄容器 (A棟 | B棟 | C棟)
     const columns = document.createElement("div");
@@ -172,8 +190,10 @@
       });
       header.appendChild(bldTitle);
     });
+    header.appendChild(countdown);
     header.appendChild(closeBtn);
     overlay.appendChild(header);
+    closeBtn.addEventListener("click", () => { clearInterval(countdownTimer); overlay.remove(); });
 
     // 尺寸基準：cellWidth 依各棟排數動態決定，取最窄的欄作為字體計算基準
     const availableHeight = window.innerHeight - 80;
@@ -284,8 +304,9 @@
   function waitForData(callback, maxWait) {
     const start = Date.now();
     const interval = setInterval(() => {
-      const rows = document.querySelectorAll("table.tb-unreceived tbody tr td");
-      if (rows.length > 0 || Date.now() - start > maxWait) {
+      const householdDivs = document.querySelectorAll("table.tb-unreceived tbody tr td:nth-child(4) div");
+      const hasContent = [...householdDivs].some((div) => div.textContent.trim().length > 0);
+      if (hasContent || Date.now() - start > maxWait) {
         clearInterval(interval);
         callback();
       }
