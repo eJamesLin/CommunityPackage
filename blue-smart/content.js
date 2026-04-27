@@ -296,16 +296,16 @@
     const recipients = scanPostalRecipients();
 
     // --- 測試資料: 模擬 20 筆包裹，測完後刪除此段 ---
-    const testData = [
-      "3號9F", "3號12F",
-      "3-1號3F", "3-1號8F", "5號1F", "5號6F",
-      "7號1F", "7號3F", "7號7F", "7號10F",
-      "9號2F", "9號5F", "9號11F",
-      "11號3F", "11號6F", "13號1F", "13號7F", "13-1號4F",
-    ].map((h) => ({ household: h, name: "", mailType: "包裹", regTime: "" }));
-    const data = testData;
+    // const testData = [
+    //   "3號9F", "3號12F",
+    //   "3-1號3F", "3-1號8F", "5號1F", "5號6F",
+    //   "7號1F", "7號3F", "7號7F", "7號10F",
+    //   "9號2F", "9號5F", "9號11F",
+    //   "11號3F", "11號6F", "13號1F", "13號7F", "13-1號4F",
+    // ].map((h) => ({ household: h, name: "", mailType: "包裹", regTime: "" }));
+    // const data = testData;
     // --- 測試資料結束 ---
-    // const data = recipients;  // 切回真實資料時用這行
+    const data = recipients;  // 切回真實資料時用這行
     
 
     printRecipients(data);
