@@ -22,7 +22,10 @@
 
       if (!householdDiv) return;
 
-      const household = householdDiv.textContent.trim().replace("樓", "F");
+      const household = householdDiv.textContent
+        .trim()
+        .replace("號", "/")
+        .replace("樓", "f");
       if (!household) return;
 
       const name = nameSpan ? nameSpan.textContent.trim() : "";
@@ -40,15 +43,15 @@
     return recipients;
   }
 
-  // 棟別判斷: 從戶別字串 (如 "13號7樓") 取出門號，對應棟別
+  // 棟別判斷: 從戶別字串 (如 "13/7f") 取出門號，對應棟別
   const BUILDING_MAP = {
-    "3": "A棟", "3-1": "A棟", "5": "A棟", "5-1": "A棟",
+    "11": "A棟", "11-1": "A棟", "13": "A棟", "13-1": "A棟",
     "7": "B棟", "9": "B棟",
-    "11": "C棟", "11-1": "C棟", "13": "C棟", "13-1": "C棟",
+    "3": "C棟", "3-1": "C棟", "5": "C棟", "5-1": "C棟",
   };
 
   function getBuilding(household) {
-    const match = household.match(/^([\d]+-?\d*)號/);
+    const match = household.match(/^([\d]+-?\d*)\//);
     if (!match) return "unknown";
     return BUILDING_MAP[match[1]] || "unknown";
   }
@@ -239,7 +242,7 @@
       const items = byBuilding[bld] || [];
       const households = [...new Set(items.map((r) => r.household))].sort((a, b) => {
         const parse = (h) => {
-          const m = h.match(/^([\d]+)(?:-(\d+))?號(\d+)F$/);
+          const m = h.match(/^([\d]+)(?:-(\d+))?\/(\d+)f$/);
           if (!m) return [0, 0, 0];
           return [parseInt(m[1]), parseInt(m[2] || "0"), parseInt(m[3])];
         };
