@@ -172,16 +172,20 @@
       const count = new Set(items.map((r) => r.household)).size;
       const cols = count > 10 ? 2 : 1;
       const rows = Math.ceil(count / cols);
-      return { bld, count, cols, rows };
+      return { bld, count, cols, rows, flexWeight: cols };
+    });
+    const totalFlex = buildingMeta.reduce((sum, meta) => sum + meta.flexWeight, 0);
+    buildingMeta.forEach((meta) => {
+      meta.colWidth = window.innerWidth * (meta.flexWeight / totalFlex);
     });
     const maxRows = Math.max(...buildingMeta.map((m) => m.rows));
 
     // 棟別標題放進 header（各佔 1/3 寬）
-    buildingMeta.forEach(({ bld }, idx) => {
+    buildingMeta.forEach(({ bld, flexWeight }, idx) => {
       const bldTitle = document.createElement("div");
       bldTitle.textContent = bld;
       Object.assign(bldTitle.style, {
-        flex: "1",
+        flex: String(flexWeight),
         fontSize: "30px",
         fontWeight: "700",
         padding: "6px 24px",
@@ -195,10 +199,9 @@
     overlay.appendChild(header);
     closeBtn.addEventListener("click", () => { clearInterval(countdownTimer); overlay.remove(); });
 
-    // 尺寸基準：cellWidth 依各棟排數動態決定，取最窄的欄作為字體計算基準
+    // 尺寸基準
     const availableHeight = window.innerHeight - 80;
-    const colWidth = window.innerWidth / 3;
-    const minCellWidth = Math.min(...buildingMeta.map((m) => colWidth / m.cols)) - 24;
+    const paddingX = 12;
 
     // 文字寬度量測（用 canvas 近似）
     function measureWidth(text, sizePx) {
@@ -208,35 +211,31 @@
       return ctx.measureText(text).width;
     }
 
-    // 找出最長的戶別字串，作為寬度限制代表樣本
-    const allHouseholds = ["A棟", "B棟", "C棟"].flatMap((bld) => {
-      const items = byBuilding[bld] || [];
-      return [...new Set(items.map((r) => r.household))];
-    });
-    const sampleText = allHouseholds.reduce((a, b) => (b && b.length > (a?.length || 0) ? b : a), "13號12F");
-
-    // 在高度與寬度限制下，二分找到可用的最大字體
+    // 每棟各自計算最大可用字體，最後取最小值（避免跨棟互相壓縮）
     const minFontSize = 12;
     const maxFontSize = 96;
-    let lo = minFontSize, hi = maxFontSize, best = minFontSize;
-    for (let i = 0; i < 12; i++) {
-      const mid = (lo + hi) / 2;
-      const paddingY = Math.max(2, mid * 0.15);
-      const rowHeight = mid * 1.4 + paddingY * 2;
-      const fitsHeight = maxRows * rowHeight <= availableHeight;
-      const paddingX = 12; // 與下方 row padding 對應
-      const textW = measureWidth(sampleText, mid) + paddingX * 2;
-      const fitsWidth = textW <= minCellWidth;
-      if (fitsHeight && fitsWidth) {
-        best = mid;
-        lo = mid + 0.5; // 嘗試更大字體
-      } else {
-        hi = mid - 0.5; // 縮小字體
-      }
-    }
-    const fontSize = Math.floor(best);
 
-    buildingMeta.forEach(({ bld, cols }, idx) => {
+    const fontSize = Math.floor(buildingMeta.reduce((globalBest, meta) => {
+      const { cols, rows, bld, colWidth } = meta;
+      // 該棟最長戶別字串
+      const bldHouseholds = [...new Set((byBuilding[bld] || []).map((r) => r.household))];
+      const sample = bldHouseholds.reduce((a, b) => (b.length > a.length ? b : a), "13號12F");
+      const cellWidth = colWidth / cols - paddingX * 2;
+
+      let lo = minFontSize, hi = maxFontSize, best = minFontSize;
+      for (let i = 0; i < 12; i++) {
+        const mid = (lo + hi) / 2;
+        const paddingY = Math.max(2, mid * 0.15);
+        const rowHeight = mid * 1.4 + paddingY * 2;
+        const fitsHeight = rows * rowHeight <= availableHeight;
+        const fitsWidth = measureWidth(sample, mid) <= cellWidth;
+        if (fitsHeight && fitsWidth) { best = mid; lo = mid + 0.5; }
+        else { hi = mid - 0.5; }
+      }
+      return Math.min(globalBest, best);
+    }, maxFontSize));
+
+    buildingMeta.forEach(({ bld, cols, flexWeight }, idx) => {
       const items = byBuilding[bld] || [];
       const households = [...new Set(items.map((r) => r.household))].sort((a, b) => {
         const parse = (h) => {
@@ -251,8 +250,8 @@
 
       const col = document.createElement("div");
       Object.assign(col.style, {
-        flex: "1",
-        borderRight: idx < 2 ? "1px solid transparent" : "none",
+        flex: String(flexWeight),
+        borderRight: idx < 2 ? "1px solid #222222" : "none",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
@@ -320,8 +319,8 @@
     // const testData = [
     //   "3號9F", "3號12F",
     //   "3-1號3F", "3-1號8F", "5號1F", "5號6F",
-    //   "7號1F", "7號3F", "7號7F", "7號10F",
-    //   "9號2F", "9號5F", "9號11F",
+    //   "7號1F", "7號2F", "7號3F", "7號9F", "7號7F", "7號10F",
+    //   "9號2F", "9號5F", "9號11F", "9號12F", 
     //   "11號3F", "11號6F", "13號1F", "13號7F", "13-1號4F",
     // ].map((h) => ({ household: h, name: "", mailType: "包裹", regTime: "" }));
     // const data = testData;
