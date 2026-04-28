@@ -166,11 +166,11 @@
       overflow: "hidden",
     });
 
-    // 計算每欄的排數與列數：超過 10 個戶號才切 2 排，否則 1 排
+    // 計算每欄的排數與列數：超過特定戶號才切 2 排，否則 1 排
     const buildingMeta = ["A棟", "B棟", "C棟"].map((bld) => {
       const items = byBuilding[bld] || [];
       const count = new Set(items.map((r) => r.household)).size;
-      const cols = count > 10 ? 2 : 1;
+      const cols = count > 7 ? 2 : 1;
       const rows = Math.ceil(count / cols);
       return { bld, count, cols, rows, flexWeight: cols };
     });
@@ -320,7 +320,7 @@
     //   "3號9F", "3號12F",
     //   "3-1號3F", "3-1號8F", "5號1F", "5號6F",
     //   "7號1F", "7號2F", "7號3F", "7號9F", "7號7F", "7號10F",
-    //   "9號2F", "9號5F", "9號11F", "9號12F", 
+    //   "9號2F", "9號5F", 
     //   "11號3F", "11號6F", "13號1F", "13號7F", "13-1號4F",
     // ].map((h) => ({ household: h, name: "", mailType: "包裹", regTime: "" }));
     // const data = testData;
