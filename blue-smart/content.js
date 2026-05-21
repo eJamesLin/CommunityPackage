@@ -22,10 +22,7 @@
 
       if (!householdDiv) return;
 
-      const household = householdDiv.textContent
-        .trim()
-        .replace("號", "/")
-        .replace("樓", "f");
+      const household = normalizeHousehold(householdDiv.textContent.trim());
       if (!household) return;
 
       const name = nameSpan ? nameSpan.textContent.trim() : "";
@@ -43,7 +40,14 @@
     return recipients;
   }
 
-  // 棟別判斷: 從戶別字串 (如 "13/7f") 取出門號，對應棟別
+  // 戶別格式正規化：將 "13號7樓" / "13號7f" 統一轉成 "13/7F"
+  function normalizeHousehold(h) {
+    return h
+      .replace(/號/, "/")
+      .replace(/樓|[Ff]/g, "F");
+  }
+
+  // 棟別判斷: 從戶別字串 (如 "13/7F") 取出門號，對應棟別
   const BUILDING_MAP = {
     "11": "A棟", "11-1": "A棟", "13": "A棟", "13-1": "A棟",
     "7": "B棟", "9": "B棟",
@@ -173,7 +177,7 @@
     const buildingMeta = ["A棟", "B棟", "C棟"].map((bld) => {
       const items = byBuilding[bld] || [];
       const count = new Set(items.map((r) => r.household)).size;
-      const cols = count > 7 ? 2 : 1;
+      const cols = count > 16 ? 2 : 1;
       const rows = Math.ceil(count / cols);
       return { bld, count, cols, rows, flexWeight: cols };
     });
@@ -242,7 +246,7 @@
       const items = byBuilding[bld] || [];
       const households = [...new Set(items.map((r) => r.household))].sort((a, b) => {
         const parse = (h) => {
-          const m = h.match(/^([\d]+)(?:-(\d+))?\/(\d+)f$/);
+          const m = h.match(/^([\d]+)(?:-(\d+))?\/(\d+)F$/);
           if (!m) return [0, 0, 0];
           return [parseInt(m[1]), parseInt(m[2] || "0"), parseInt(m[3])];
         };
@@ -318,14 +322,22 @@
   function run() {
     const recipients = scanPostalRecipients();
 
-    // --- 測試資料: 模擬 20 筆包裹，測完後刪除此段 ---
+    // --- 測試資料: 模擬 38 筆包裹，測完後刪除此段 ---
     // const testData = [
-    //   "3號9F", "3號12F",
-    //   "3-1號3F", "3-1號8F", "5號1F", "5號6F",
-    //   "7號1F", "7號2F", "7號3F", "7號9F", "7號7F", "7號10F",
-    //   "9號2F", "9號5F", 
-    //   "11號3F", "11號6F", "13號1F", "13號7F", "13-1號4F",
-    // ].map((h) => ({ household: h, name: "", mailType: "包裹", regTime: "" }));
+    //   // C棟 (3號/3-1號/5號/5-1號) — 12 戶，觸發 2 欄
+    //   "3號2F", "3號5F", "3號9F", "3號12F",
+    //   "3-1號3F", "3-1號7F", "3-1號8F",
+    //   // "5號1F", "5號4F", "5號6F", "5號11F",
+    //   "5-1號2F",
+    //   // B棟 (7號/9號) — 10 戶，剛好不觸發 2 欄
+    //   "7號1F", "7號2F", "7號3F", "7號7F", "7號9F", "7號10F",
+    //   // "9號2F", "9號5F", "9號8F", "9號11F",
+    //   // A棟 (11號/11-1號/13號/13-1號) — 16 戶，觸發 2 欄
+    //   "11號1F", "11號2F", "11號3F", "11號4F","11號6F", "11號9F", "11號10F","11號12F","11號13F",
+    //   "11-1號2F", "11-1號5F","11-1號4F",
+    //   // "13號1F", "13號4F", "13號7F", "13號10F", 
+    //   //"13-1號2F", "13-1號4F", "13-1號6F", "13-1號8F", 
+    // ].map((h) => ({ household: normalizeHousehold(h), name: "", mailType: "包裹", regTime: "" }));
     // const data = testData;
     // --- 測試資料結束 ---
     const data = recipients;  // 切回真實資料時用這行
