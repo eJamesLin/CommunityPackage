@@ -27,6 +27,8 @@
 
       const name = nameSpan ? nameSpan.textContent.trim() : "";
 
+      const parcelNo = cells[1]?.textContent.trim() || "";
+
       // Mail type is in cells[2]
       const typeDiv = cells[2]?.querySelector("div");
       const mailType = typeDiv ? typeDiv.textContent.trim() : "";
@@ -34,7 +36,7 @@
       // Registration time is in cells[5]
       const regTime = cells[5]?.textContent.trim() || "";
 
-      recipients.push({ household, name, mailType, regTime });
+      recipients.push({ parcelNo, household, name, mailType, regTime });
     });
 
     return recipients;
@@ -60,6 +62,16 @@
     return BUILDING_MAP[match[1]] || "unknown";
   }
 
+  function groupByBuilding(recipients) {
+    const byBuilding = {};
+    recipients.forEach((r) => {
+      const bld = getBuilding(r.household);
+      if (!byBuilding[bld]) byBuilding[bld] = [];
+      byBuilding[bld].push(r);
+    });
+    return byBuilding;
+  }
+
   function printRecipients(recipients) {
     if (recipients.length === 0) {
       console.log("[PostalViewer] No unreceived parcels found.");
@@ -69,13 +81,7 @@
     console.log(`[PostalViewer] Unreceived parcels: ${recipients.length} items`);
     console.log("===========================================");
 
-    // 依棟別分組
-    const byBuilding = {};
-    recipients.forEach((r) => {
-      const bld = getBuilding(r.household);
-      if (!byBuilding[bld]) byBuilding[bld] = [];
-      byBuilding[bld].push(r);
-    });
+    const byBuilding = groupByBuilding(recipients);
 
     // 依 A -> B -> C 順序輸出
     ["A棟", "B棟", "C棟", "unknown"].forEach((bld) => {
@@ -94,12 +100,19 @@
     const existing = document.getElementById("pv-overlay");
     if (existing) existing.remove();
 
-    // 依棟別分組
-    const byBuilding = {};
-    recipients.forEach((r) => {
-      const bld = getBuilding(r.household);
-      if (!byBuilding[bld]) byBuilding[bld] = [];
-      byBuilding[bld].push(r);
+    // 依棟別分組，並整理各戶別對應的包裹編號（去重保留順序）
+    const byBuilding = groupByBuilding(recipients);
+    const parcelNosByBuilding = {};
+    Object.entries(byBuilding).forEach(([bld, items]) => {
+      const nosMap = new Map();
+      items.forEach((r) => {
+        const nos = nosMap.get(r.household) || [];
+        if (r.parcelNo && !nos.includes(r.parcelNo)) {
+          nos.push(r.parcelNo);
+        }
+        nosMap.set(r.household, nos);
+      });
+      parcelNosByBuilding[bld] = nosMap;
     });
 
     // 全頁面蓋板
@@ -221,12 +234,13 @@
     // 每棟各自計算最大可用字體，最後取最小值（避免跨棟互相壓縮）
     const minFontSize = 12;
     const maxFontSize = 96;
+    const parcelFontSize = (sizePx) => Math.max(10, Math.round(sizePx * 0.4));
 
     const fontSize = Math.floor(buildingMeta.reduce((globalBest, meta) => {
       const { cols, rows, bld, colWidth } = meta;
-      // 該棟最長戶別字串
-      const bldHouseholds = [...new Set((byBuilding[bld] || []).map((r) => r.household))];
-      const sample = bldHouseholds.reduce((a, b) => (b.length > a.length ? b : a), "13號12F");
+      const nosMap = parcelNosByBuilding[bld] || new Map();
+      const bldEntries = [...nosMap.entries()];
+      if (bldEntries.length === 0) bldEntries.push(["13號12F", []]);
       const cellWidth = colWidth / cols - paddingX * 2;
 
       let lo = minFontSize, hi = maxFontSize, best = minFontSize;
@@ -235,7 +249,12 @@
         const paddingY = Math.max(2, mid * 0.15);
         const rowHeight = mid * 1.4 + paddingY * 2;
         const fitsHeight = rows * rowHeight <= availableHeight;
-        const fitsWidth = measureWidth(sample, mid) <= cellWidth;
+        const subSize = parcelFontSize(mid);
+        const maxRowWidth = bldEntries.reduce((maxW, [h, nos]) => {
+          const w = measureWidth(h, mid) + (nos.length ? measureWidth(" " + nos.join(" & "), subSize) + 4 : 0);
+          return Math.max(maxW, w);
+        }, 0);
+        const fitsWidth = maxRowWidth <= cellWidth;
         if (fitsHeight && fitsWidth) { best = mid; lo = mid + 0.5; }
         else { hi = mid - 0.5; }
       }
@@ -275,9 +294,23 @@
         alignContent: "start",
       });
 
+      const subFontSize = parcelFontSize(fontSize);
+      const nosMap = parcelNosByBuilding[bld] || new Map();
+
       households.forEach((h) => {
         const row = document.createElement("div");
         row.textContent = h;
+        const nos = nosMap.get(h) || [];
+        if (nos.length > 0) {
+          const noSpan = document.createElement("span");
+          noSpan.textContent = ` ${nos.join(" & ")}`;
+          Object.assign(noSpan.style, {
+            fontSize: subFontSize + "px",
+            color: "#1976d2",
+            marginLeft: "4px",
+          });
+          row.appendChild(noSpan);
+        }
         Object.assign(row.style, {
           padding: Math.max(2, fontSize * 0.15) + "px 16px",
           fontSize: fontSize + "px",
@@ -323,24 +356,28 @@
     const recipients = scanPostalRecipients();
 
     // --- 測試資料: 模擬 38 筆包裹，測完後刪除此段 ---
-    // const testData = [
-    //   // C棟 (3號/3-1號/5號/5-1號) — 12 戶，觸發 2 欄
-    //   "3號2F", "3號5F", "3號9F", "3號12F",
-    //   "3-1號3F", "3-1號7F", "3-1號8F",
-    //   // "5號1F", "5號4F", "5號6F", "5號11F",
-    //   "5-1號2F",
-    //   // B棟 (7號/9號) — 10 戶，剛好不觸發 2 欄
-    //   "7號1F", "7號2F", "7號3F", "7號7F", "7號9F", "7號10F",
-    //   // "9號2F", "9號5F", "9號8F", "9號11F",
-    //   // A棟 (11號/11-1號/13號/13-1號) — 16 戶，觸發 2 欄
-    //   "11號1F", "11號2F", "11號3F", "11號4F","11號6F", "11號9F", "11號10F","11號12F","11號13F",
-    //   "11-1號2F", "11-1號5F","11-1號4F",
-    //   // "13號1F", "13號4F", "13號7F", "13號10F", 
-    //   //"13-1號2F", "13-1號4F", "13-1號6F", "13-1號8F", 
-    // ].map((h) => ({ household: normalizeHousehold(h), name: "", mailType: "包裹", regTime: "" }));
-    // const data = testData;
+    /*
+    const testData = [
+      // C棟 (3號/3-1號/5號/5-1號) — 12 戶，觸發 2 欄
+      "3號2F", "3號2F", "3號2F", "3號2F", "3號2F",
+      "3號5F", "3號9F", "3號12F",
+      "3-1號3F", "3-1號7F", "3-1號8F",
+      "5號1F", "5號4F", "5號6F", "5號11F",
+      "5-1號2F","5-1號3F","5-1號5F","5-1號6F","5-1號7F",
+      "5-1號8F","5-1號9F","5-1號10F","5-1號11F","5-1號12F",
+      // B棟 (7號/9號) — 10 戶，剛好不觸發 2 欄
+      "7號1F", "7號2F", "7號3F", "7號7F", "7號9F", "7號10F",
+      // "9號2F", "9號5F", "9號8F", "9號11F",
+      // A棟 (11號/11-1號/13號/13-1號) — 16 戶，觸發 2 欄
+      // "11號1F", "11號2F", "11號3F", "11號4F","11號6F", "11號9F", "11號10F","11號12F","11號13F",
+      "11-1號2F", "11-1號5F","11-1號4F",
+      // "13號1F", "13號4F", "13號7F", "13號10F", 
+      //"13-1號2F", "13-1號4F", "13-1號6F", "13-1號8F", 
+    ].map((h, i) => ({ parcelNo: String(i + 1), household: normalizeHousehold(h), name: "", mailType: "包裹", regTime: "" }));
+    const data = testData;
+     */
     // --- 測試資料結束 ---
-    const data = recipients;  // 切回真實資料時用這行
+    const data = recipients;
     
 
     printRecipients(data);
